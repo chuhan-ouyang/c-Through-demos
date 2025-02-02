@@ -28,19 +28,14 @@ void set_buffer_sizes(int sock, int buffer_size) {
 }
 
 int main(int argc, char *argv[]) {
-    int buffer_size = 0;
+    int buffer_size = 0;  // Default: No change
 
     if (argc == 3 && std::string(argv[1]) == "-n") {
         buffer_size = std::atoi(argv[2]);
     } else if (argc == 2 && std::string(argv[1]) == "-i") {
         buffer_size = DEFAULT_INCREASED_SIZE;
-    } else {
+    } else if (argc > 1) {
         std::cerr << "Usage: " << argv[0] << " [-n buffer_size] or [-i]\n";
-        return EXIT_FAILURE;
-    }
-
-    if (buffer_size <= 0) {
-        std::cerr << "Invalid buffer size.\n";
         return EXIT_FAILURE;
     }
 
@@ -56,9 +51,11 @@ int main(int argc, char *argv[]) {
     std::cout << "Default ";
     print_buffer_sizes(server_fd);
 
-    set_buffer_sizes(server_fd, buffer_size);
-    std::cout << "Updated ";
-    print_buffer_sizes(server_fd);
+    if (buffer_size > 0) {
+        set_buffer_sizes(server_fd, buffer_size);
+        std::cout << "Updated ";
+        print_buffer_sizes(server_fd);
+    }
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
@@ -88,9 +85,14 @@ int main(int argc, char *argv[]) {
     std::cout << "Client connected.\n";
     print_buffer_sizes(new_socket);
 
-    int bytes_received = read(new_socket, buffer, BUFFER_SIZE);
-    if (bytes_received > 0) {
-        std::cout << "Received Data (" << bytes_received << " bytes): " << buffer << "\n";
+    while (true) {
+        int bytes_received = read(new_socket, buffer, BUFFER_SIZE);
+        if (bytes_received <= 0) {
+            std::cout << "Client disconnected.\n";
+            break;
+        }
+        std::cout << "Received (" << bytes_received << " bytes), echoing back...\n";
+        send(new_socket, buffer, bytes_received, 0);  // Echo back
     }
 
     close(new_socket);
