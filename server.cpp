@@ -7,8 +7,11 @@
 #include <cstdlib>
 
 #define PORT 8080
-#define BUFFER_SIZE 1024
-#define DEFAULT_INCREASED_SIZE 200000  // Size for -i flag
+#define DEFAULT_BUFFER_SIZE 1024
+#define DEFAULT_MESSAGE_SIZE 1024
+#define INCREASED_BUFFER_SIZE 32768
+#define INCREASED_MESSAGE_SIZE 32768
+#define TCP_BUFFER_SIZE 200000  // Applied when -i flag is used
 
 void print_buffer_sizes(int sock) {
     int recv_buf, send_buf;
@@ -28,20 +31,22 @@ void set_buffer_sizes(int sock, int buffer_size) {
 }
 
 int main(int argc, char *argv[]) {
-    int buffer_size = 0;  // Default: No change
+    bool increase_buffer = false;
 
-    if (argc == 3 && std::string(argv[1]) == "-n") {
-        buffer_size = std::atoi(argv[2]);
-    } else if (argc == 2 && std::string(argv[1]) == "-i") {
-        buffer_size = DEFAULT_INCREASED_SIZE;
+    if (argc == 2 && std::string(argv[1]) == "-i") {
+        increase_buffer = true;
     } else if (argc > 1) {
-        std::cerr << "Usage: " << argv[0] << " [-n buffer_size] or [-i]\n";
+        std::cerr << "Usage: " << argv[0] << " [-i]\n";
         return EXIT_FAILURE;
     }
 
+    // Set buffer size and message size
+    int buffer_size = increase_buffer ? INCREASED_BUFFER_SIZE : DEFAULT_BUFFER_SIZE;
+    int message_size = increase_buffer ? INCREASED_MESSAGE_SIZE : DEFAULT_MESSAGE_SIZE;
+
     int server_fd, new_socket;
     struct sockaddr_in address;
-    char buffer[BUFFER_SIZE] = {0};
+    char buffer[buffer_size];
 
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("Socket failed");
@@ -51,8 +56,8 @@ int main(int argc, char *argv[]) {
     std::cout << "Default ";
     print_buffer_sizes(server_fd);
 
-    if (buffer_size > 0) {
-        set_buffer_sizes(server_fd, buffer_size);
+    if (increase_buffer) {
+        set_buffer_sizes(server_fd, TCP_BUFFER_SIZE);
         std::cout << "Updated ";
         print_buffer_sizes(server_fd);
     }
@@ -86,7 +91,7 @@ int main(int argc, char *argv[]) {
     print_buffer_sizes(new_socket);
 
     while (true) {
-        int bytes_received = read(new_socket, buffer, BUFFER_SIZE);
+        int bytes_received = read(new_socket, buffer, buffer_size);
         if (bytes_received <= 0) {
             std::cout << "Client disconnected.\n";
             break;

@@ -8,9 +8,11 @@
 #include <arpa/inet.h>
 
 #define PORT 8080
-#define MESSAGE_SIZE (1024) 
-#define BUFFER_SIZE 1024
-#define DEFAULT_INCREASED_SIZE 200000  // Size for -i flag
+#define DEFAULT_BUFFER_SIZE 1024
+#define DEFAULT_MESSAGE_SIZE 1024
+#define INCREASED_BUFFER_SIZE 32768
+#define INCREASED_MESSAGE_SIZE 32768
+#define TCP_BUFFER_SIZE 200000  // Applied when -i flag is used
 
 void print_buffer_sizes(int sock) {
     int recv_buf, send_buf;
@@ -30,20 +32,22 @@ void set_buffer_sizes(int sock, int buffer_size) {
 }
 
 int main(int argc, char *argv[]) {
-    int buffer_size = 0;  // Default: No change
+    bool increase_buffer = false;
 
-    if (argc == 3 && std::string(argv[1]) == "-n") {
-        buffer_size = std::atoi(argv[2]);
-    } else if (argc == 2 && std::string(argv[1]) == "-i") {
-        buffer_size = DEFAULT_INCREASED_SIZE;
+    if (argc == 2 && std::string(argv[1]) == "-i") {
+        increase_buffer = true;
     } else if (argc > 1) {
-        std::cerr << "Usage: " << argv[0] << " [-n buffer_size] or [-i]\n";
+        std::cerr << "Usage: " << argv[0] << " [-i]\n";
         return EXIT_FAILURE;
     }
 
+    // Set buffer size and message size
+    int buffer_size = increase_buffer ? INCREASED_BUFFER_SIZE : DEFAULT_BUFFER_SIZE;
+    int message_size = increase_buffer ? INCREASED_MESSAGE_SIZE : DEFAULT_MESSAGE_SIZE;
+
     int sock = 0;
     struct sockaddr_in serv_addr;
-    char message[MESSAGE_SIZE];
+    char message[message_size];
     memset(message, 'A', sizeof(message) - 1);
     message[sizeof(message) - 1] = '\0';  // Null-terminate the string
 
@@ -55,8 +59,8 @@ int main(int argc, char *argv[]) {
     std::cout << "Default ";
     print_buffer_sizes(sock);
 
-    if (buffer_size > 0) {
-        set_buffer_sizes(sock, buffer_size);
+    if (increase_buffer) {
+        set_buffer_sizes(sock, TCP_BUFFER_SIZE);
         std::cout << "Updated ";
         print_buffer_sizes(sock);
     }
@@ -80,10 +84,10 @@ int main(int argc, char *argv[]) {
 
     while (true) {
         send(sock, message, sizeof(message), 0);
-        std::cout << "Sent 16384 bytes data packet.\n";
+        std::cout << "Sent " << sizeof(message) << " bytes.\n";
 
-        char buffer[BUFFER_SIZE] = {0};
-        int bytes_received = recv(sock, buffer, BUFFER_SIZE, 0);
+        char buffer[buffer_size] = {0};
+        int bytes_received = recv(sock, buffer, buffer_size, 0);
         if (bytes_received <= 0) {
             std::cout << "Server disconnected.\n";
             break;
